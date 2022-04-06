@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -45,6 +46,20 @@ UART_HandleTypeDef huart3;
 
 PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
+/* Definitions for TaskMoveMotor1 */
+osThreadId_t TaskMoveMotor1Handle;
+const osThreadAttr_t TaskMoveMotor1_attributes = {
+  .name = "TaskMoveMotor1",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for TaskMoveMotor2 */
+osThreadId_t TaskMoveMotor2Handle;
+const osThreadAttr_t TaskMoveMotor2_attributes = {
+  .name = "TaskMoveMotor2",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -55,6 +70,9 @@ static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_USB_OTG_FS_PCD_Init(void);
 static void MX_TIM2_Init(void);
+void StartMoveMotor1(void *argument);
+void StartMoveMotor2(void *argument);
+
 /* USER CODE BEGIN PFP */
 void servo_write(int);
 void servo_sweep(void);
@@ -100,9 +118,48 @@ int main(void)
   /* USER CODE BEGIN 2 */
   // start the timer
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
 
   /* USER CODE END 2 */
 
+  /* Init scheduler */
+  osKernelInitialize();
+
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* creation of TaskMoveMotor1 */
+  TaskMoveMotor1Handle = osThreadNew(StartMoveMotor1, NULL, &TaskMoveMotor1_attributes);
+
+  /* creation of TaskMoveMotor2 */
+  TaskMoveMotor2Handle = osThreadNew(StartMoveMotor2, NULL, &TaskMoveMotor2_attributes);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* USER CODE BEGIN RTOS_EVENTS */
+  /* add events, ... */
+  /* USER CODE END RTOS_EVENTS */
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -225,6 +282,11 @@ static void MX_TIM2_Init(void)
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.Pulse = 0;
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
   }
@@ -381,6 +443,72 @@ int map(int st1, int fn1, int st2, int fn2, int value)
     return (1.0*(value-st1))/((fn1-st1)*1.0) * (fn2-st2)+st2;
 }
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartMoveMotor1 */
+/**
+  * @brief  Function implementing the TaskMoveMotor1 thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartMoveMotor1 */
+void StartMoveMotor1(void *argument)
+{
+  /* USER CODE BEGIN 5 */
+  /* Infinite loop */
+  for(;;)
+  {
+	  //HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_7);
+	  //osDelay(100); //milliseconds
+
+	  htim2.Instance->CCR1 = 100;
+	  osDelay(500); //milliseconds
+	  htim2.Instance->CCR1 = 200;
+	  osDelay(500); //milliseconds
+  }
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartMoveMotor2 */
+/**
+* @brief Function implementing the TaskMoveMotor2 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartMoveMotor2 */
+void StartMoveMotor2(void *argument)
+{
+  /* USER CODE BEGIN StartMoveMotor2 */
+  /* Infinite loop */
+  for(;;)
+  {
+	  htim2.Instance->CCR2 = 100;
+	  osDelay(500); //milliseconds
+	  htim2.Instance->CCR2 = 200;
+	  osDelay(500); //milliseconds
+  }
+  /* USER CODE END StartMoveMotor2 */
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM6 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM6) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.
