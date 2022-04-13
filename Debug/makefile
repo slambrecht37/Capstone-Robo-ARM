@@ -64,8 +64,8 @@ all: main-build
 main-build: capstone-robo-arm-v3.elf secondary-outputs
 
 # Tool invocations
-capstone-robo-arm-v3.elf: $(OBJS) $(USER_OBJS) C:\Users\Sam\STM32CubeIDE\workspace_1.8.0\capstone-robo-arm-v3\STM32F412ZGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "capstone-robo-arm-v3.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\Sam\STM32CubeIDE\workspace_1.8.0\capstone-robo-arm-v3\STM32F412ZGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="capstone-robo-arm-v3.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+capstone-robo-arm-v3.elf: $(OBJS) $(USER_OBJS) /Users/joshua/STM32CubeIDE/workspace_1.8.0/capstone-robo-arm-v3/STM32F412ZGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "capstone-robo-arm-v3.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"/Users/joshua/STM32CubeIDE/workspace_1.8.0/capstone-robo-arm-v3/STM32F412ZGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="capstone-robo-arm-v3.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

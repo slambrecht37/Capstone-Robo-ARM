@@ -22,12 +22,16 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdint.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+struct Motor {
+	int id;
+	int min;
+	int max;
+} motor;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -60,8 +64,22 @@ const osThreadAttr_t TaskMoveMotor2_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for TaskMoveMotor3 */
+osThreadId_t TaskMoveMotor3Handle;
+const osThreadAttr_t TaskMoveMotor3_attributes = {
+  .name = "TaskMoveMotor3",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for TaskNewPosition */
+osThreadId_t TaskNewPositionHandle;
+const osThreadAttr_t TaskNewPosition_attributes = {
+  .name = "TaskNewPosition",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
 /* USER CODE BEGIN PV */
-
+int motorPositions[3];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -72,16 +90,24 @@ static void MX_USB_OTG_FS_PCD_Init(void);
 static void MX_TIM2_Init(void);
 void StartMoveMotor1(void *argument);
 void StartMoveMotor2(void *argument);
+void StartMoveMotor3(void *argument);
+void UpdatePosition(void *argument);
 
 /* USER CODE BEGIN PFP */
 void servo_write(int);
 void servo_sweep(void);
 int map(int, int, int, int, int);
+int angleToPosition(int);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+struct Motor motor1;
+struct Motor motor2;
+struct Motor motor3;
+struct Motor motor4;
+struct Motor motor5;
+struct Motor motor6;
 /* USER CODE END 0 */
 
 /**
@@ -91,7 +117,24 @@ int map(int, int, int, int, int);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+	motor1.id = 1;
+	motor1.max = 160;
+	motor1.min = 90;
+	motor2.id = 2;
+	motor2.max = 155;
+	motor2.min = 155;
+	motor3.id = 3;
+	motor3.max = 254;
+	motor3.min = 95;
+	motor4.id = 4;
+	motor4.max = 253;
+	motor4.min = 45;
+	motor5.id = 5;
+	motor5.max = 253;
+	motor5.min = 45;
+	motor6.id = 6;
+	motor6.max = 253;
+	motor6.min = 45;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -147,6 +190,12 @@ int main(void)
 
   /* creation of TaskMoveMotor2 */
   TaskMoveMotor2Handle = osThreadNew(StartMoveMotor2, NULL, &TaskMoveMotor2_attributes);
+
+  /* creation of TaskMoveMotor3 */
+  TaskMoveMotor3Handle = osThreadNew(StartMoveMotor3, NULL, &TaskMoveMotor3_attributes);
+
+  /* creation of TaskNewPosition */
+  TaskNewPositionHandle = osThreadNew(UpdatePosition, NULL, &TaskNewPosition_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -442,6 +491,11 @@ int map(int st1, int fn1, int st2, int fn2, int value)
 {
     return (1.0*(value-st1))/((fn1-st1)*1.0) * (fn2-st2)+st2;
 }
+
+int angleToPosition(int angle)
+{
+	return 188/180 * angle + 65;
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartMoveMotor1 */
@@ -460,7 +514,7 @@ void StartMoveMotor1(void *argument)
 	  //HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_7);
 	  //osDelay(100); //milliseconds
 
-	  htim2.Instance->CCR1 = 100;
+	  htim2.Instance->CCR1 = 2;
 	  osDelay(500); //milliseconds
 	  htim2.Instance->CCR1 = 200;
 	  osDelay(500); //milliseconds
@@ -487,6 +541,70 @@ void StartMoveMotor2(void *argument)
 	  osDelay(500); //milliseconds
   }
   /* USER CODE END StartMoveMotor2 */
+}
+
+/* USER CODE BEGIN Header_StartMoveMotor3 */
+/**
+* @brief Function implementing the TaskMoveMotor3 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartMoveMotor3 */
+void StartMoveMotor3(void *argument)
+{
+  /* USER CODE BEGIN StartMoveMotor3 */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartMoveMotor3 */
+}
+
+/* USER CODE BEGIN Header_UpdatePosition */
+/**
+* @brief Function implementing the TaskNewPosition thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_UpdatePosition */
+void UpdatePosition(void *argument)
+{
+  /* USER CODE BEGIN UpdatePosition */
+  /* Infinite loop */
+  for(;;)
+  {
+	  int pos0 = 1;
+	  int pos1 = 1;
+	  int pos2 = 1;
+	  //int pos0 = angleToPosition(uartRxData[0]);
+	  //int pos1 = angleToPosition(uartRxData[1]);
+	  //int pos2 = angleToPosition(uartRxData[2]);
+	  if (pos0 < motor1.min) {
+		  motorPositions[0] = motor1.min;
+	  } else if (pos0 > motor1.max) {
+		  motorPositions[0] = motor1.max;
+	  } else {
+		  motorPositions[0] = pos0;
+	  }
+	  if (pos1 < motor2.min) {
+	  	  motorPositions[1] = motor2.min;
+	  } else if (pos1 > motor2.max) {
+	  	  motorPositions[1] = motor2.max;
+	  } else {
+	  	  motorPositions[1] = pos1;
+	  }
+	  if (pos2 < motor3.min) {
+	  	  motorPositions[2] = motor3.min;
+	  } else if (pos2 > motor3.max) {
+		  motorPositions[2] = motor3.max;
+	  } else {
+		  motorPositions[2] = pos2;
+  	  }
+
+	  osDelay(1);
+  }
+  /* USER CODE END UpdatePosition */
 }
 
 /**
