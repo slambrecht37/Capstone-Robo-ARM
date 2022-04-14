@@ -22,12 +22,17 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "stdint.h"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+struct Motor {
+	int id;
+	int min;
+	int max;
+} motor;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -60,7 +65,34 @@ const osThreadAttr_t TaskMoveMotor2_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for TaskMoveMotor3 */
+osThreadId_t TaskMoveMotor3Handle;
+const osThreadAttr_t TaskMoveMotor3_attributes = {
+  .name = "TaskMoveMotor3",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for TaskNewPosition */
+osThreadId_t TaskNewPositionHandle;
+const osThreadAttr_t TaskNewPosition_attributes = {
+  .name = "TaskNewPosition",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
 /* USER CODE BEGIN PV */
+
+int messageAngles1[] = {95, 120, 180, 130, 100, 160};
+int messageAngles2[] = {105, 160, 110, 90, 100, 120};
+
+int servoAnglesDefault[] = {110, 100};
+
+int servoAngles2Servos[] = {110, 100}; //arbitrary default values
+
+int messageIndex = 0;
+
+uint8_t uartRxData[10];
+
+int motorPositions[3];
 
 /* USER CODE END PV */
 
@@ -72,16 +104,24 @@ static void MX_USB_OTG_FS_PCD_Init(void);
 static void MX_TIM2_Init(void);
 void StartMoveMotor1(void *argument);
 void StartMoveMotor2(void *argument);
+void StartMoveMotor3(void *argument);
+void UpdatePosition(void *argument);
 
 /* USER CODE BEGIN PFP */
 void servo_write(int);
 void servo_sweep(void);
 int map(int, int, int, int, int);
+int angleToPosition(int);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+struct Motor motor1;
+struct Motor motor2;
+struct Motor motor3;
+struct Motor motor4;
+struct Motor motor5;
+struct Motor motor6;
 /* USER CODE END 0 */
 
 /**
@@ -91,6 +131,29 @@ int map(int, int, int, int, int);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+	motor1.id = 1;
+	motor1.max = 160;
+	motor1.min = 90;
+	motor2.id = 2;
+	motor2.max = 155;
+	motor2.min = 155;
+	motor3.id = 3;
+	motor3.max = 254;
+	motor3.min = 95;
+	motor4.id = 4;
+	motor4.max = 253;
+	motor4.min = 45;
+	motor5.id = 5;
+	motor5.max = 253;
+	motor5.min = 45;
+	motor6.id = 6;
+	motor6.max = 253;
+	motor6.min = 45;
+
+	uartRxData[0] = 100;
+	uartRxData[1] = 100;
+	uartRxData[2] = 100;
+
 
   /* USER CODE END 1 */
 
@@ -148,12 +211,20 @@ int main(void)
   /* creation of TaskMoveMotor2 */
   TaskMoveMotor2Handle = osThreadNew(StartMoveMotor2, NULL, &TaskMoveMotor2_attributes);
 
+  /* creation of TaskMoveMotor3 */
+  TaskMoveMotor3Handle = osThreadNew(StartMoveMotor3, NULL, &TaskMoveMotor3_attributes);
+
+  /* creation of TaskNewPosition */
+  TaskNewPositionHandle = osThreadNew(UpdatePosition, NULL, &TaskNewPosition_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
+
+  HAL_UART_Receive_IT(&huart3, uartRxData, 1);
   /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
@@ -169,16 +240,16 @@ int main(void)
 	  //servo_sweep();
 
 	  //only 2, probably first two are valid pulse widths
-	  htim2.Instance->CCR1 = 150;
-	  HAL_Delay(1000);
-	  htim2.Instance->CCR1 = 100;
-	  HAL_Delay(1000);
-	  htim2.Instance->CCR1 = 300;
-	  HAL_Delay(1000);
-	  htim2.Instance->CCR1 = 700;
-	  HAL_Delay(1000);
-	  htim2.Instance->CCR1 = 1000;
-	   HAL_Delay(1000);
+//	  htim2.Instance->CCR1 = 150;
+//	  HAL_Delay(1000);
+//	  htim2.Instance->CCR1 = 100;
+//	  HAL_Delay(1000);
+//	  htim2.Instance->CCR1 = 300;
+//	  HAL_Delay(1000);
+//	  htim2.Instance->CCR1 = 700;
+//	  HAL_Delay(1000);
+//	  htim2.Instance->CCR1 = 1000;
+//	   HAL_Delay(1000);
 	  //htim2.Instance->CCR1 = 1500;
 	  //HAL_Delay(1000);
 
@@ -290,6 +361,10 @@ static void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
@@ -313,11 +388,11 @@ static void MX_USART3_UART_Init(void)
 
   /* USER CODE END USART3_Init 1 */
   huart3.Instance = USART3;
-  huart3.Init.BaudRate = 115200;
+  huart3.Init.BaudRate = 9600;
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
   huart3.Init.StopBits = UART_STOPBITS_1;
-  huart3.Init.Parity = UART_PARITY_NONE;
-  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.Parity = UART_PARITY_ODD;
+  huart3.Init.Mode = UART_MODE_RX;
   huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart3.Init.OverSampling = UART_OVERSAMPLING_16;
   if (HAL_UART_Init(&huart3) != HAL_OK)
@@ -418,6 +493,14 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+
+  //do stuff here
+  HAL_UART_Receive_IT(&huart3, uartRxData, 1);
+}
+
+
 void servo_write(int angle)
 {
 	//htim2.Instance->CCR1 = map(0,180,50,250,angle);
@@ -442,6 +525,11 @@ int map(int st1, int fn1, int st2, int fn2, int value)
 {
     return (1.0*(value-st1))/((fn1-st1)*1.0) * (fn2-st2)+st2;
 }
+
+int angleToPosition(int angle)
+{
+	return 188/180 * angle + 65;
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartMoveMotor1 */
@@ -460,10 +548,18 @@ void StartMoveMotor1(void *argument)
 	  //HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_7);
 	  //osDelay(100); //milliseconds
 
-	  htim2.Instance->CCR1 = 100;
-	  osDelay(500); //milliseconds
-	  htim2.Instance->CCR1 = 200;
-	  osDelay(500); //milliseconds
+//	  htim2.Instance->CCR1 = 100;
+//	  osDelay(500); //milliseconds
+//	  htim2.Instance->CCR1 = 200;
+//	  osDelay(500); //milliseconds
+
+	  //htim2.Instance->CCR1 = motorPositions[1];
+	  htim2.Instance->CCR1 = 160;
+
+	  osDelay(210);
+
+
+
   }
   /* USER CODE END 5 */
 }
@@ -481,12 +577,81 @@ void StartMoveMotor2(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	  htim2.Instance->CCR2 = 100;
-	  osDelay(500); //milliseconds
-	  htim2.Instance->CCR2 = 200;
-	  osDelay(500); //milliseconds
+//	  htim2.Instance->CCR2 = 100;
+//	  osDelay(500); //milliseconds
+//	  htim2.Instance->CCR2 = 200;
+//	  osDelay(500); //milliseconds
+
+	  htim2.Instance->CCR2 = 160;
+	  osDelay(220);
   }
   /* USER CODE END StartMoveMotor2 */
+}
+
+/* USER CODE BEGIN Header_StartMoveMotor3 */
+/**
+* @brief Function implementing the TaskMoveMotor3 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartMoveMotor3 */
+void StartMoveMotor3(void *argument)
+{
+  /* USER CODE BEGIN StartMoveMotor3 */
+  /* Infinite loop */
+  for(;;)
+  {
+	  htim2.Instance->CCR3 = motorPositions[0];
+
+    osDelay(200);
+  }
+  /* USER CODE END StartMoveMotor3 */
+}
+
+/* USER CODE BEGIN Header_UpdatePosition */
+/**
+* @brief Function implementing the TaskNewPosition thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_UpdatePosition */
+void UpdatePosition(void *argument)
+{
+  /* USER CODE BEGIN UpdatePosition */
+  /* Infinite loop */
+  for(;;)
+  {
+	  //int pos0 = 1;
+	  //int pos1 = 1;
+	  //int pos2 = 1;
+	  int pos0 = angleToPosition(uartRxData[0]);
+	  //int pos1 = angleToPosition(uartRxData[1]);
+	  //int pos2 = angleToPosition(uartRxData[2]);
+	  if (pos0 < motor1.min) {
+		  motorPositions[0] = motor1.min;
+	  } else if (pos0 > motor1.max) {
+		  motorPositions[0] = motor1.max;
+	  } else {
+		  motorPositions[0] = pos0;
+	  }
+//	  if (pos1 < motor2.min) {
+//	  	  motorPositions[1] = motor2.min;
+//	  } else if (pos1 > motor2.max) {
+//	  	  motorPositions[1] = motor2.max;
+//	  } else {
+//	  	  motorPositions[1] = pos1;
+//	  }
+//	  if (pos2 < motor3.min) {
+//	  	  motorPositions[2] = motor3.min;
+//	  } else if (pos2 > motor3.max) {
+//		  motorPositions[2] = motor3.max;
+//	  } else {
+//		  motorPositions[2] = pos2;
+//  	  }
+
+    osDelay(100);
+  }
+  /* USER CODE END UpdatePosition */
 }
 
 /**
